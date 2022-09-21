@@ -1,0 +1,22 @@
+version: '3.9'
+
+services:
+  mysql:
+    image: mysql:latest
+    volumes:
+      - db_data:/var/lib/mysql
+    restart: always
+    environment:
+      MYSQL_DATABASE: daostorage
+      MYSQL_ROOT_PASSWORD: ****
+      MYSQL_ALLOW_EMPTY_PASSWORD: 1
+    ports:
+      - '3306:3306'
+  redis:
+    image: 'redis:latest'
+    restart: always
+    ports:
+      - '6379:6379'
+
+volumes:
+  db_data: {}

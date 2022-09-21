@@ -1,0 +1,10 @@
+{
+    "type": "mysql",
+    "host": "localhost",
+    "port": 3306,
+    "username": "root",
+    "password": "*****",
+    "database": "daostorage",
+    "entities": ["src/modules/**/entities/*.entity.{ts,js}"],
+    "synchronize": true
+}
