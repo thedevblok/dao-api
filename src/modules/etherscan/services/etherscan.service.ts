@@ -1,18 +1,18 @@
+import { JsonRpcProvider } from '@ethersproject/providers';
 import { HttpService } from '@nestjs/axios';
-import { ConfigType } from '@nestjs/config';
 import { Inject, Injectable } from '@nestjs/common';
-import { AxiosResponse } from 'axios';
-import { lastValueFrom } from 'rxjs';
+import { ConfigType } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { AxiosResponse } from 'axios';
+import Decimal from 'decimal.js';
+import { ethers } from 'ethers';
+import * as _ from 'lodash';
+import { lastValueFrom } from 'rxjs';
 import { getRepository } from 'typeorm';
+import etherscanConfig from '../configs/etherscan.config';
 import { Etherscan } from '../entities/etherscan.entity';
 import { EthTransaction } from '../entities/ethTransaction.entity';
-import etherscanConfig from '../configs/etherscan.config';
-import * as _ from 'lodash';
 import { Nft } from '../entities/nft.entity';
-import Decimal from 'decimal.js';
-import { JsonRpcProvider } from '@ethersproject/providers';
-import { ethers } from 'ethers';
 import { globeHeadsNFTAbi } from '../globeHeadsNFTAbi.json';
 
 @Injectable()
@@ -21,7 +21,7 @@ export class EtherscanService {
     @Inject(etherscanConfig.KEY)
     private readonly config: ConfigType<typeof etherscanConfig>,
     private httpService: HttpService,
-  ) {}
+  ) { }
 
   @Cron(CronExpression.EVERY_MINUTE)
   async syncTransactions() {
@@ -30,9 +30,8 @@ export class EtherscanService {
       const repository = getRepository(Etherscan);
       const etherscanData = await repository.findOne(1);
       let lastBlock = etherscanData.lastBlockSynced;
-      const etherscanUrl = `https://api.etherscan.io/api?module=account&action=txlist&address=${ethAddress}&startblock=${
-        lastBlock + 1
-      }&endblock=99999999&sort=asc&apikey=${this.config.apiKey}`;
+      const etherscanUrl = `https://api.etherscan.io/api?module=account&action=txlist&address=${ethAddress}&startblock=${lastBlock + 1
+        }&endblock=99999999&sort=asc&apikey=${this.config.apiKey}`;
 
       const transactions = await lastValueFrom(
         this.httpService.get(etherscanUrl),
@@ -44,7 +43,7 @@ export class EtherscanService {
         const ethTransactionRepository = getRepository(EthTransaction);
         _.each(results, async function (result) {
           if (
-            result.to.toLowerCase() == ethAddress.toLowerCase() &&
+            result.to?.toLowerCase() == ethAddress.toLowerCase() &&
             result.confirmations >= 7 &&
             result.value > 0
           ) {
@@ -124,51 +123,61 @@ export class EtherscanService {
   @Cron(CronExpression.EVERY_30_SECONDS)
   async transferNft() {
     if (process.env.APP_INSTANCE_SEQ === '0' || process.env.NODE_ENV == 'DEV') {
-      console.log('------ ERROR: ------- ')
+      console.log('------ ERROR: ------- ');
       const nftRepository = getRepository(Nft);
 
       const nftsToTransfer = await nftRepository.find({
         where: {
-          'minted': true,
-          'transferred': false
+          minted: true,
+          transferred: false,
         },
-        take: 1
-      })
+        take: 1,
+      });
 
-      let nftToTransfer = nftsToTransfer[0];
-      console.log('------ TRANSFER NFT: ------- ' + nftToTransfer.editionNumber)
+      const nftToTransfer = nftsToTransfer[0];
+      console.log(
+        '------ TRANSFER NFT: ------- ' + nftToTransfer.editionNumber,
+      );
 
       if (nftsToTransfer[0]) {
-        const maticProvider: JsonRpcProvider = new ethers.providers.JsonRpcProvider({
-          url: process.env.MATIC_PROVIDER_URL,
-        });
+        const maticProvider: JsonRpcProvider =
+          new ethers.providers.JsonRpcProvider({
+            url: process.env.MATIC_PROVIDER_URL,
+          });
         const globeheadsContract = new ethers.Contract(
-            process.env.GLOBEHEADS_CONTRACT_ADDRESS,
-            globeHeadsNFTAbi,
-            maticProvider,
+          process.env.GLOBEHEADS_CONTRACT_ADDRESS,
+          globeHeadsNFTAbi,
+          maticProvider,
         );
 
-        const wallet = new ethers.Wallet(process.env.MATIC_PRIVATE_KEY, maticProvider);
-        let walletSigner = wallet.connect(maticProvider)
+        const wallet = new ethers.Wallet(
+          process.env.MATIC_PRIVATE_KEY,
+          maticProvider,
+        );
+        const walletSigner = wallet.connect(maticProvider);
         const contractAsSigner = await globeheadsContract.connect(walletSigner);
-
 
         const editionNumer = nftToTransfer.editionNumber;
         const ethAddress = nftToTransfer.address;
         const fromAddress = process.env.GLOBEHEADS_OWNER_ADDRESS;
 
         try {
-          const transfer = await contractAsSigner.transferFrom(fromAddress, ethAddress, editionNumer, {
-            gasPrice: 200000000000,
-          });
-    
+          const transfer = await contractAsSigner.transferFrom(
+            fromAddress,
+            ethAddress,
+            editionNumer,
+            {
+              gasPrice: 200000000000,
+            },
+          );
+
           nftToTransfer.transferred = true;
           nftRepository.save(nftToTransfer);
         } catch (e) {
-          console.log('------ ERROR: ------- ' + e)
+          console.log('------ ERROR: ------- ' + e);
         }
 
-        console.log(nftToTransfer.editionNumber)
+        console.log(nftToTransfer.editionNumber);
       }
     }
   }
@@ -189,14 +198,14 @@ export class EtherscanService {
     const deadAddressBalance = await lastValueFrom(
       this.httpService.get(
         'https://api.etherscan.io/api?module=account&action=tokenbalance&contractaddress=0x3402E15b3EA0f1aEC2679c4Be4c6d051ceF93953&address=0x000000000000000000000000000000000000dead&tag=latest&apikey=' +
-          this.config.apiKey,
+        this.config.apiKey,
       ),
     );
 
     const burnAddressBalance = await lastValueFrom(
       this.httpService.get(
         'https://api.etherscan.io/api?module=account&action=tokenbalance&contractaddress=0x3402E15b3EA0f1aEC2679c4Be4c6d051ceF93953&address=0x0000000000000000000000000000000000000000&tag=latest&apikey=' +
-          this.config.apiKey,
+        this.config.apiKey,
       ),
     );
 
@@ -238,8 +247,8 @@ export class EtherscanService {
     const circulatingSupply = 10000000000000;
     return Math.round(
       circulatingSupply -
-        deadAddressBalance.data.result * 0.000000000000000001 -
-        burnAddressBalance.data.result * 0.000000000000000001,
+      deadAddressBalance.data.result * 0.000000000000000001 -
+      burnAddressBalance.data.result * 0.000000000000000001,
     );
   }
 }

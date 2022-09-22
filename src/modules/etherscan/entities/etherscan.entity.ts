@@ -3,7 +3,7 @@ import {
   Column,
   Entity,
   PrimaryGeneratedColumn,
-  UpdateDateColumn,
+  UpdateDateColumn
 } from 'typeorm';
 
 @Entity()
@@ -14,7 +14,9 @@ export class Etherscan extends BaseEntity {
   @UpdateDateColumn()
   updatedAt: Date;
 
-  @Column()
+  @Column({
+    default: '0',
+  })
   numberOfHolders: string;
 
   @Column()
